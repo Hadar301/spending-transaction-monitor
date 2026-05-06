@@ -2,7 +2,7 @@
  * Unit tests for ApiClient authentication and JWT token management
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { apiClient } from '../apiClient';
+import { ApiClient, apiClient } from '../apiClient';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -16,6 +16,8 @@ describe('ApiClient', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
+    ApiClient.setToken(null);
+    ApiClient.setAccessTokenRefresher(null);
     mockFetch.mockClear();
     consoleLog.mockClear();
     consoleWarn.mockClear();
@@ -157,6 +159,33 @@ describe('ApiClient', () => {
       });
       // Note: Console warnings may vary - main thing is no token found, so no auth header
     });
+
+    it('should use localStorage token when static token is an expired JWT', async () => {
+      const pastExp = Math.floor(Date.now() / 1000) - 3600;
+      const payload = globalThis.btoa(JSON.stringify({ exp: pastExp }));
+      const staleJwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
+      const freshToken = 'fresh-from-oidc-storage';
+      ApiClient.setToken(staleJwt);
+      const oidcKey =
+        'oidc.user:http://localhost:8080/realms/spending-monitor:spending-monitor';
+      localStorage.setItem(
+        oidcKey,
+        JSON.stringify({
+          access_token: freshToken,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      );
+      mockFetch.mockResolvedValueOnce(new globalThis.Response('[]', { status: 200 }));
+
+      await apiClient.fetch('/api/test');
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/test', {
+        headers: {
+          Authorization: `Bearer ${freshToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    });
   });
 
   describe('HTTP Request Handling', () => {
@@ -287,6 +316,41 @@ describe('ApiClient', () => {
           'Content-Type': 'application/json',
         },
       });
+    });
+  });
+
+  describe('Access token refresh on 401', () => {
+    it('should retry fetch once after refresher returns a new token', async () => {
+      const oldToken =
+        'eyJhbGciOiJIUzI1NiJ9.' +
+        globalThis.btoa(JSON.stringify({ exp: 9999999999 })) +
+        '.sig';
+      const newToken =
+        'eyJhbGciOiJIUzI1NiJ9.' +
+        globalThis.btoa(JSON.stringify({ exp: 9999999999 })) +
+        '.new';
+
+      ApiClient.setToken(oldToken);
+      const refresher = vi.fn().mockResolvedValue(newToken);
+      ApiClient.setAccessTokenRefresher(refresher);
+
+      mockFetch
+        .mockResolvedValueOnce(
+          new globalThis.Response('{"detail":"Token expired"}', { status: 401 }),
+        )
+        .mockResolvedValueOnce(new globalThis.Response('[]', { status: 200 }));
+
+      const response = await apiClient.fetch('/api/transactions');
+
+      expect(refresher).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][1].headers.Authorization).toBe(
+        `Bearer ${oldToken}`,
+      );
+      expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe(
+        `Bearer ${newToken}`,
+      );
+      expect(response.status).toBe(200);
     });
   });
 

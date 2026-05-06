@@ -118,24 +118,25 @@ const ProductionAuthProvider = React.memo(
         post_logout_redirect_uri: authConfig.keycloak.postLogoutRedirectUri,
         response_type: 'code',
         scope: 'openid profile email',
-        automaticSilentRenew: false, // Disable for debugging
-        includeIdTokenInSilentRenew: false, // Disable for debugging
-        // Ensure localStorage persistence
-        storeUser: true, // Explicitly enable user storage
-        userStore: undefined, // Use default WebStorageStateStore (localStorage)
-        // Remove problematic config
+        // Renew access tokens in the background before they expire (required or API gets 401s).
+        automaticSilentRenew: true,
+        includeIdTokenInSilentRenew: true,
+        storeUser: true,
+        userStore: undefined, // default WebStorageStateStore (localStorage)
         loadUserInfo: false,
         monitorSession: false,
       }),
       [],
     );
 
-    useEffect(() => {
-      // OIDC config initialized
-    }, [oidcConfig]);
+    // Strip ?code=&state= (or hash equivalents) after redirect login. If they stay in the URL,
+    // a full page refresh runs signinCallback again with a consumed code → auth error.
+    const onSigninCallback = useCallback(() => {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }, []);
 
     return (
-      <OIDCProvider {...oidcConfig}>
+      <OIDCProvider {...oidcConfig} onSigninCallback={onSigninCallback}>
         <OIDCAuthWrapper>{children}</OIDCAuthWrapper>
       </OIDCProvider>
     );
@@ -149,8 +150,8 @@ ProductionAuthProvider.displayName = 'ProductionAuthProvider';
 const OIDCAuthWrapper = React.memo(({ children }: { children: React.ReactNode }) => {
   const oidcAuth = useOIDCAuth();
   const [user, setUser] = useState<User | null>(null);
-  // Note: Location is now handled by LocationCapture component on user interaction
 
+  // Sync user + bearer token to ApiClient; register silent refresh for 401 recovery after idle.
   useEffect(() => {
     if (oidcAuth.error) {
       console.error('OIDC Authentication Error:', oidcAuth.error);
@@ -168,10 +169,21 @@ const OIDCAuthWrapper = React.memo(({ children }: { children: React.ReactNode })
       };
       setUser(newUser);
 
-      // Pass token to ApiClient
       if (oidcAuth.user.access_token) {
         ApiClient.setToken(oidcAuth.user.access_token);
       }
+
+      ApiClient.setAccessTokenRefresher(async () => {
+        try {
+          const refreshed = await oidcAuth.signinSilent();
+          return refreshed?.access_token ?? null;
+        } catch (e) {
+          if (import.meta.env.DEV) {
+            console.warn('Access token refresh (signinSilent) failed:', e);
+          }
+          return null;
+        }
+      });
 
       if (import.meta.env.DEV) {
         console.log('🔒 User authenticated via OIDC:', {
@@ -181,12 +193,11 @@ const OIDCAuthWrapper = React.memo(({ children }: { children: React.ReactNode })
       }
     } else {
       setUser(null);
-      clearStoredLocation(); // Clear location data on logout (frontend cleanup)
-      // Clear token from ApiClient
+      clearStoredLocation();
       ApiClient.setToken(null);
-      // Note: Location clearing also handled by backend on logout
+      ApiClient.setAccessTokenRefresher(null);
     }
-  }, [oidcAuth.user, oidcAuth.error]);
+  }, [oidcAuth]);
 
   // Location is now handled by LocationCapture component
 

@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     KEYCLOAK_REALM: str = 'spending-monitor'
     KEYCLOAK_CLIENT_ID: str = 'spending-monitor'
 
+    # Accept tokens up to this many seconds past exp / before nbf (Keycloak vs API pod clock skew).
+    JWT_CLOCK_SKEW_LEEWAY_SECONDS: int = 120
+
     # SMTP settings
     SMTP_HOST: str = 'localhost'
     SMTP_PORT: int = 8025

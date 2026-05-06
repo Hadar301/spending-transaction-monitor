@@ -8,6 +8,7 @@ import logging
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError
 import requests
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -200,7 +201,11 @@ class KeycloakJWTBearer:
                 jwks,
                 algorithms=['RS256'],
                 issuer=oidc_config['issuer'],
-                options={'verify_exp': True, 'verify_aud': False},
+                options={
+                    'verify_exp': True,
+                    'verify_aud': False,
+                    'leeway': settings.JWT_CLOCK_SKEW_LEEWAY_SECONDS,
+                },
             )
 
             # Manual audience verification (more flexible for public clients)
@@ -224,6 +229,21 @@ class KeycloakJWTBearer:
 
             return claims
 
+        except ExpiredSignatureError as e:
+            # python-jose often surfaces exp claim failures as "Signature has expired"
+            logger.error(
+                '❌ JWT validation failed: access token is expired (exp claim). '
+                'The client must refresh or obtain a new token (Keycloak access token TTL).'
+            )
+            try:
+                unverified_claims = jwt.get_unverified_claims(token)
+                logger.error(
+                    f'   Token issuer: {unverified_claims.get("iss", "N/A")}, '
+                    f'exp: {unverified_claims.get("exp", "N/A")}'
+                )
+            except Exception:
+                pass
+            raise HTTPException(status_code=401, detail='Token expired') from e
         except JWTError as e:
             logger.error(f'❌ JWT validation error: {e}')
             try:

@@ -5,6 +5,10 @@ import time
 
 from .client import KeycloakClient
 
+# Default OIDC access token TTL for the app realm (Keycloak: Realm settings → Tokens).
+# Longer values mean the browser/client refreshes tokens less often.
+_DEFAULT_ACCESS_TOKEN_LIFESPAN_SECONDS = 8 * 60 * 60  # 8 hours
+
 
 class RealmManager(KeycloakClient):
     """Manages Keycloak realm creation and configuration."""
@@ -36,6 +40,7 @@ class RealmManager(KeycloakClient):
                 'enabled': True,
                 'displayName': 'Spending Monitor',
                 'displayNameHtml': '<div class="kc-logo-text"><span>Spending Monitor</span></div>',
+                'accessTokenLifespan': _DEFAULT_ACCESS_TOKEN_LIFESPAN_SECONDS,
             }
 
             response = self.post('/admin/realms', json=realm_data)
@@ -52,6 +57,38 @@ class RealmManager(KeycloakClient):
 
         except Exception as e:
             self.log(f'❌ Error creating realm: {e}', 'ERROR')
+            return False
+
+    def configure_realm_access_token_lifespan(self) -> bool:
+        """Set realm OIDC access token TTL (new and existing realms)."""
+        try:
+            ttl = _DEFAULT_ACCESS_TOKEN_LIFESPAN_SECONDS
+            response = self.get(f'/admin/realms/{self.app_realm}')
+            if response.status_code != 200:
+                self.log(
+                    f'❌ Failed to fetch realm for token settings: {response.status_code}',
+                    'ERROR',
+                )
+                return False
+
+            realm = response.json()
+            realm['accessTokenLifespan'] = ttl
+            response = self.put(
+                f'/admin/realms/{self.app_realm}',
+                json=realm,
+            )
+            if response.status_code in (200, 204):
+                self.log(f'✅ Access token lifespan set to {ttl}s ({ttl // 3600}h)')
+                return True
+
+            self.log(
+                f'❌ Failed to update realm token settings: {response.status_code}',
+                'ERROR',
+            )
+            return False
+
+        except Exception as e:
+            self.log(f'❌ Error updating realm token settings: {e}', 'ERROR')
             return False
 
     def create_client(self) -> bool:
@@ -161,6 +198,9 @@ class RealmManager(KeycloakClient):
             return False
 
         time.sleep(1)  # Brief pause for realm to be ready
+
+        if not self.configure_realm_access_token_lifespan():
+            return False
 
         if not self.create_client():
             return False

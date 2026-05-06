@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError
+from jose.exceptions import ExpiredSignatureError
 import pytest
 
 # Import from source
@@ -112,6 +113,23 @@ class TestKeycloakJWTBearer:
             await bearer.validate_token('invalid.jwt.token')
 
         assert exc_info.value.status_code == 401
+
+    @patch('src.auth.middleware.jwt.decode')
+    @patch('src.auth.middleware.KeycloakJWTBearer.get_jwks')
+    @patch('src.auth.middleware.KeycloakJWTBearer.get_oidc_config')
+    @pytest.mark.asyncio
+    async def test_validate_token_expired(self, mock_config, mock_jwks, mock_decode):
+        """Expired exp claim surfaces as ExpiredSignatureError from jose"""
+        mock_config.return_value = MOCK_OIDC_CONFIG
+        mock_jwks.return_value = MOCK_JWKS
+        mock_decode.side_effect = ExpiredSignatureError('Signature has expired.')
+
+        bearer = KeycloakJWTBearer()
+        with pytest.raises(HTTPException) as exc_info:
+            await bearer.validate_token('expired.jwt.token')
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == 'Token expired'
 
 
 class TestAuthDependencies:

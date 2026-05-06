@@ -7,6 +7,22 @@ import { getStoredLocation } from '../hooks/useLocation';
 import { createLocationHeaders, type Location } from '../schemas/location';
 import type { ApiClientConfig, ApiResponse } from '../schemas/api';
 
+/** If JWT exp is within leeway of "now", treat as expired so we read a fresher token from OIDC storage. */
+function isJwtAccessTokenLikelyExpired(token: string, leewaySeconds: number): boolean {
+  const parts = token.split('.');
+  if (parts.length < 2) return false;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: unknown };
+    if (typeof payload.exp !== 'number') return false;
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now + leewaySeconds;
+  } catch {
+    return false;
+  }
+}
+
 export class ApiClient {
   private baseUrl: string;
   private timeout: number;
@@ -16,6 +32,8 @@ export class ApiClient {
   // Static method to set token from auth context
   private static currentToken: string | null = null;
   private static onAuthError?: () => void;
+  /** OIDC silent refresh (`signinSilent`) — returns new access_token or null. */
+  private static accessTokenRefresher: (() => Promise<string | null>) | null = null;
 
   static setToken(token: string | null) {
     ApiClient.currentToken = token;
@@ -23,6 +41,19 @@ export class ApiClient {
 
   static setAuthErrorHandler(handler: () => void) {
     ApiClient.onAuthError = handler;
+  }
+
+  static setAccessTokenRefresher(refresher: (() => Promise<string | null>) | null) {
+    ApiClient.accessTokenRefresher = refresher;
+  }
+
+  private static async tryRefreshAccessToken(): Promise<string | null> {
+    if (!ApiClient.accessTokenRefresher) return null;
+    try {
+      return (await ApiClient.accessTokenRefresher()) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   constructor(config: ApiClientConfig = {}) {
@@ -39,12 +70,14 @@ export class ApiClient {
   }
 
   private getToken(): string | null {
-    // First try static token (set from auth context)
-    if (ApiClient.currentToken) {
+    // Prefer in-memory token only while it is still valid; after expiry OIDC may have
+    // renewed in localStorage before React re-ran ApiClient.setToken().
+    const cached = ApiClient.currentToken;
+    if (cached && !isJwtAccessTokenLikelyExpired(cached, 120)) {
       if (import.meta.env.DEV) {
         console.log('🔑 Using static token from auth context');
       }
-      return ApiClient.currentToken;
+      return cached;
     }
 
     // Check localStorage for OIDC tokens
@@ -139,86 +172,92 @@ export class ApiClient {
     options: globalThis.RequestInit = {},
     customLocation?: Location | null,
   ): Promise<ApiResponse<T>> {
-    let didTimeout = false;
-    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-      setTimeout(() => {
-        didTimeout = true;
-        reject(new ApiError('Request timeout', 408));
-      }, this.timeout);
-    });
-
-    try {
-      // Build full URL
-      const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
-
-      // Create headers with optional custom location
-      let headers = this.createHeaders(options.headers as Record<string, string>);
-
-      // Override with custom location if provided
-      if (customLocation) {
-        Object.assign(headers, createLocationHeaders(customLocation));
-      } else if (customLocation === null) {
-        // Explicitly remove location headers if null is passed
-        delete headers['X-User-Latitude'];
-        delete headers['X-User-Longitude'];
-        delete headers['X-User-Location-Accuracy'];
-      }
-
-      const fetchPromise: Promise<globalThis.Response> = fetch(fullUrl, {
-        ...options,
-        headers,
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let didTimeout = false;
+      const timeoutPromise: Promise<never> = new Promise((_, reject) => {
+        setTimeout(() => {
+          didTimeout = true;
+          reject(new ApiError('Request timeout', 408));
+        }, this.timeout);
       });
 
-      const response = (await Promise.race([
-        fetchPromise,
-        timeoutPromise,
-      ])) as globalThis.Response;
+      try {
+        const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
 
-      const contentType = response.headers?.get?.('content-type') ?? null;
-      let data: T;
+        let headers = this.createHeaders(options.headers as Record<string, string>);
 
-      if (contentType && contentType.includes('application/json')) {
-        data = (await response.json()) as T;
-      } else if (
-        typeof (response as { text?: () => Promise<string> }).text === 'function'
-      ) {
-        data = (await response.text()) as unknown as T;
-      } else {
-        // Some tests mock minimal Response objects without headers; fall back to undefined text
-        data = undefined as unknown as T;
-      }
-
-      if (!response.ok) {
-        const apiError = new ApiError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          response.status,
-          data,
-        );
-
-        // Handle authentication errors globally
-        if (apiError.isAuthError && ApiClient.onAuthError) {
-          console.warn(
-            '🔒 Authentication error detected, triggering auth error handler',
-          );
-          ApiClient.onAuthError();
+        if (customLocation) {
+          Object.assign(headers, createLocationHeaders(customLocation));
+        } else if (customLocation === null) {
+          delete headers['X-User-Latitude'];
+          delete headers['X-User-Longitude'];
+          delete headers['X-User-Location-Accuracy'];
         }
 
-        throw apiError;
-      }
+        const hadAuthorization = Boolean(headers.Authorization);
 
-      return {
-        data,
-        status: response?.status ?? 200,
-        statusText: response?.statusText ?? 'OK',
-        headers: response?.headers ?? new globalThis.Headers(),
-      };
-    } catch (error) {
-      // If timeout path already produced an ApiError, rethrow as-is
-      if (didTimeout) {
+        const response = (await Promise.race([
+          fetch(fullUrl, { ...options, headers }),
+          timeoutPromise,
+        ])) as globalThis.Response;
+
+        const contentType = response.headers?.get?.('content-type') ?? null;
+        let data: T;
+
+        if (contentType && contentType.includes('application/json')) {
+          data = (await response.json()) as T;
+        } else if (
+          typeof (response as { text?: () => Promise<string> }).text === 'function'
+        ) {
+          data = (await response.text()) as unknown as T;
+        } else {
+          data = undefined as unknown as T;
+        }
+
+        if (!response.ok) {
+          const apiError = new ApiError(
+            `HTTP ${response.status}: ${response.statusText}`,
+            response.status,
+            data,
+          );
+
+          if (
+            response.status === 401 &&
+            hadAuthorization &&
+            attempt === 0 &&
+            ApiClient.accessTokenRefresher
+          ) {
+            const newToken = await ApiClient.tryRefreshAccessToken();
+            if (newToken) {
+              ApiClient.setToken(newToken);
+              continue;
+            }
+          }
+
+          if (apiError.isAuthError && ApiClient.onAuthError) {
+            console.warn(
+              '🔒 Authentication error detected, triggering auth error handler',
+            );
+            ApiClient.onAuthError();
+          }
+
+          throw apiError;
+        }
+
+        return {
+          data,
+          status: response?.status ?? 200,
+          statusText: response?.statusText ?? 'OK',
+          headers: response?.headers ?? new globalThis.Headers(),
+        };
+      } catch (error) {
+        if (didTimeout) {
+          throw error;
+        }
         throw error;
       }
-      throw error;
     }
+    throw new Error('ApiClient.makeRequest: internal error');
   }
 
   /**
@@ -228,12 +267,26 @@ export class ApiClient {
     url: string,
     options: globalThis.RequestInit = {},
   ): Promise<globalThis.Response> {
-    const headers = this.createHeaders(options.headers as Record<string, string>);
+    for (let attempt = 0; ; attempt++) {
+      const headers = this.createHeaders(options.headers as Record<string, string>);
+      const hadAuthorization = Boolean(headers.Authorization);
+      const response = await fetch(url, { ...options, headers });
 
-    return fetch(url, {
-      ...options,
-      headers,
-    });
+      if (
+        response.status !== 401 ||
+        !hadAuthorization ||
+        !ApiClient.accessTokenRefresher ||
+        attempt > 0
+      ) {
+        return response;
+      }
+
+      const newToken = await ApiClient.tryRefreshAccessToken();
+      if (!newToken) {
+        return response;
+      }
+      ApiClient.setToken(newToken);
+    }
   }
 
   /**

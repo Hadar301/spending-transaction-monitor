@@ -14,7 +14,7 @@ function isJwtAccessTokenLikelyExpired(token: string, leewaySeconds: number): bo
   try {
     const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
-    const payload = JSON.parse(atob(padded)) as { exp?: unknown };
+    const payload = JSON.parse(globalThis.atob(padded)) as { exp?: unknown };
     if (typeof payload.exp !== 'number') return false;
     const now = Math.floor(Date.now() / 1000);
     return payload.exp <= now + leewaySeconds;

@@ -9,7 +9,6 @@ import {
   AuthProvider as OIDCProvider,
   useAuth as useOIDCAuth,
 } from 'react-oidc-context';
-import type { User as OidcUser } from 'oidc-client-ts';
 import { authConfig } from '../config/auth';
 import type { User, AuthContextType } from '../schemas/auth';
 import { DEV_USER } from '../constants/auth';
@@ -132,7 +131,7 @@ const ProductionAuthProvider = React.memo(
 
     // Strip ?code=&state= (or hash equivalents) after redirect login. If they stay in the URL,
     // a full page refresh runs signinCallback again with a consumed code → auth error.
-    const onSigninCallback = useCallback((_user: OidcUser | undefined) => {
+    const onSigninCallback = useCallback(() => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }, []);
 
@@ -198,7 +197,7 @@ const OIDCAuthWrapper = React.memo(({ children }: { children: React.ReactNode })
       ApiClient.setToken(null);
       ApiClient.setAccessTokenRefresher(null);
     }
-  }, [oidcAuth.user, oidcAuth.user?.access_token, oidcAuth.user?.expires_at, oidcAuth.error, oidcAuth.signinSilent]);
+  }, [oidcAuth]);
 
   // Location is now handled by LocationCapture component
 

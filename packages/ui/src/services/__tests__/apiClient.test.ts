@@ -162,7 +162,7 @@ describe('ApiClient', () => {
 
     it('should use localStorage token when static token is an expired JWT', async () => {
       const pastExp = Math.floor(Date.now() / 1000) - 3600;
-      const payload = btoa(JSON.stringify({ exp: pastExp }));
+      const payload = globalThis.btoa(JSON.stringify({ exp: pastExp }));
       const staleJwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
       const freshToken = 'fresh-from-oidc-storage';
       ApiClient.setToken(staleJwt);
@@ -321,8 +321,14 @@ describe('ApiClient', () => {
 
   describe('Access token refresh on 401', () => {
     it('should retry fetch once after refresher returns a new token', async () => {
-      const oldToken = 'eyJhbGciOiJIUzI1NiJ9.' + btoa(JSON.stringify({ exp: 9999999999 })) + '.sig';
-      const newToken = 'eyJhbGciOiJIUzI1NiJ9.' + btoa(JSON.stringify({ exp: 9999999999 })) + '.new';
+      const oldToken =
+        'eyJhbGciOiJIUzI1NiJ9.' +
+        globalThis.btoa(JSON.stringify({ exp: 9999999999 })) +
+        '.sig';
+      const newToken =
+        'eyJhbGciOiJIUzI1NiJ9.' +
+        globalThis.btoa(JSON.stringify({ exp: 9999999999 })) +
+        '.new';
 
       ApiClient.setToken(oldToken);
       const refresher = vi.fn().mockResolvedValue(newToken);
@@ -338,8 +344,12 @@ describe('ApiClient', () => {
 
       expect(refresher).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${oldToken}`);
-      expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe(`Bearer ${newToken}`);
+      expect(mockFetch.mock.calls[0][1].headers.Authorization).toBe(
+        `Bearer ${oldToken}`,
+      );
+      expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe(
+        `Bearer ${newToken}`,
+      );
       expect(response.status).toBe(200);
     });
   });

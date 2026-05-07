@@ -1,6 +1,6 @@
-# Deliver personalized spending alerts with AI anomaly detection
+# Deploy AI-powered spending alerts with anomaly detection
 
-Detect fraud and unusual spending in real time with AI-powered alerts and natural language rules, improving security and customer trust.
+Detect fraud and unusual spending in real time with AI-powered alerts using natural language rules to improve security and customer trust.
 
 
 ## Table of Contents
@@ -67,6 +67,9 @@ Detect fraud and unusual spending in real time with AI-powered alerts and natura
 
 An **AI-driven application** that enables users to define **natural language alert rules** for their credit card transactions. The system provides rule-based anomaly detection and location-based security monitoring, ingesting real-time data, evaluating transactions against user-defined rules, applying AI/ML analysis for anomaly detection, and sending alerts through preferred channels such as email or SMS.
 
+
+![Screenshot of the Spending Transaction Monitor Dashboard](docs/images/spending-transaction-monitor-ui.png)
+
 ### Who is this for?
 
 This quickstart guide is designed for:
@@ -128,7 +131,7 @@ Throughout this quickstart, you'll gain hands-on experience with modern AI and c
 - **[LlamaStack](https://github.com/meta-llama/llama-stack)** - AI inference platform for natural language rule parsing
 - **[LangGraph](https://langchain-ai.github.io/langgraph/)** - State machine framework for managing agent workflows
 - **TensorFlow/PyTorch** - ML frameworks for behavioral anomaly detection
-- **RHOAI (Red Hat OpenShift AI)** - Enterprise AI/ML platform
+- **Red Hat® OpenShift® AI (RHOAI)** - Enterprise AI/ML platform
 
 **Backend & Data:**
 
@@ -147,7 +150,7 @@ Throughout this quickstart, you'll gain hands-on experience with modern AI and c
 
 **Cloud-Native Infrastructure:**
 
-- **[OpenShift](https://www.redhat.com/en/technologies/cloud-computing/openshift)/[Kubernetes](https://kubernetes.io/)** - Container orchestration and deployment platform
+- **[Red Hat® OpenShift®](https://www.redhat.com/en/technologies/cloud-computing/openshift)/[Kubernetes](https://kubernetes.io/)** - Container orchestration and deployment platform
 - **[Podman](https://podman.io/)** - Container runtime for local development
 - **[Helm](https://helm.sh/)** - Kubernetes package manager
 
@@ -388,7 +391,7 @@ To adapt this quickstart for your specific transaction monitoring needs:
 
 - [oc CLI](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) - OpenShift command line tool
 - [Helm](https://helm.sh/docs/intro/install/) - Kubernetes package manager
-- OpenShift 4.x cluster with **RHOAI** (Red Hat OpenShift AI)
+- Red Hat® OpenShift® 4.x with Red Hat® OpenShift® AI
 
 ### Required user permissions
 
@@ -398,7 +401,7 @@ To adapt this quickstart for your specific transaction monitoring needs:
 
 #### Cluster Admin Privileges
 
-**IMPORTANT:** This quickstart utilizes some features that can only be used if the role you're using for installing the charts has `clusterAdmin`. This includes enabling and setting up the model registry. To learn more about the `clusterAdmin` privileges please see the [documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.22/html/enabling_lab-tuning/installing-the-required-components-for-lab-tuning_enable-lab-tuning).
+**IMPORTANT:** This quickstart utilizes some features that can only be used if the role you're using for installing the charts has `clusterAdmin` privileges. This includes enabling and setting up the model registry. To learn more about `clusterAdmin` privileges, refer to the [Red Hat OpenShift AI cluster admin documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.22/html/enabling_lab-tuning/installing-the-required-components-for-lab-tuning_enable-lab-tuning).
 
 ---
 
@@ -630,7 +633,7 @@ pnpm type-check        # Run TypeScript checks
 
 ### OpenShift Deployment
 
-> **Note:** Some features in this quickstart require `clusterAdmin` privileges, particularly for enabling and setting up the model registry. See [Required user permissions](#required-user-permissions) for details.
+> **Note:** Some features in this quickstart require `clusterAdmin` privileges, particularly for enabling and setting up the model registry in Red Hat OpenShift AI. See [Required user permissions](#required-user-permissions) for details.
 
 #### Quick Deploy
 
@@ -893,10 +896,10 @@ Now that you have the system running, you can dive deeper into specific componen
 
 ## Tags
 
-- **Industry:** Banking and securities
-- **Product:** OpenShift AI
-- **Use case:** Transaction monitoring, Anomaly detection, Personalized alerts
-- **Contributor org:** Red Hat
+- **Industry**: Banking and securities
+- **Product**: Red Hat OpenShift AI
+- **Use case**: Transaction monitoring with AI-driven anomaly detection and personalized alerts
+- **Contributor organization**: Red Hat
 
 ---
 

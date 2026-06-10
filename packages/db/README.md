@@ -16,7 +16,7 @@ PostgreSQL database setup with Docker Compose and Alembic migrations.
 
 ### Prerequisites
 - Podman (preferred) or Docker
-- Python 3.11+ (for running migrations)
+- Python 3.12+ (for running migrations)
 
 ### Setup
 

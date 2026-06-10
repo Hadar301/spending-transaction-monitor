@@ -52,7 +52,7 @@ This document outlines how to prepare your contributions, what conventions to fo
 1. Requirements:  
    - Node.js (v18+)  
    - pnpm (v9+)  
-   - Python 3.11+  
+   - Python 3.12+  
    - [Any other prerequisites: Docker, etc.]  
 2. Install dependencies and prepare local dev environment:  
    ```bash

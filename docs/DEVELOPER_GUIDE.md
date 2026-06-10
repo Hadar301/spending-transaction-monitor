@@ -137,7 +137,7 @@ graph TD
 ### Prerequisites
 
 - **Node.js** 18+ & **pnpm** 9+
-- **Python** 3.11+ & **uv** package manager
+- **Python** 3.12+ & **uv** package manager
 - **Podman** (preferred) or **Docker**
 - **Git**
 - **jq** (for JSON processing in scripts)
@@ -863,7 +863,7 @@ rm -rf .venv
 uv sync
 
 # Check Python version
-python --version  # Should be 3.11+
+python --version  # Should be 3.12+
 ```
 
 #### Port Conflicts

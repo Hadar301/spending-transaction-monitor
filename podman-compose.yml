@@ -129,7 +129,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
   llamastack:
-    image: docker.io/llamastack/distribution-starter:0.2.23
+    image: docker.io/ogxai/distribution-starter:0.5.2
     platform: linux/amd64
     container_name: spending-monitor-llamastack
     env_file:

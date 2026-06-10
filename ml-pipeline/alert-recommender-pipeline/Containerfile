@@ -7,7 +7,7 @@
 # Or from repository root:
 #   podman build -t alert-recommender-pipeline -f ml-pipeline/alert-recommender-pipeline/Containerfile ml-pipeline/
 
-FROM registry.access.redhat.com/ubi9/python-311:latest
+FROM registry.access.redhat.com/ubi9/python-312:latest
 
 # Set working directory
 WORKDIR /app

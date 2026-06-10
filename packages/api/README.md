@@ -22,7 +22,7 @@ FastAPI backend application with AI-powered transaction monitoring and alerting.
 ## Quick Start
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.12+
 - uv (Python package manager)
 - Docker and Docker Compose
 - Git

@@ -381,7 +381,7 @@ To adapt this quickstart for your specific transaction monitoring needs:
 
 **Local Tools:**
 
-- [Python 3.11+](https://www.python.org/downloads/)
+- [Python 3.12+](https://www.python.org/downloads/)
 - [Node.js 18+](https://nodejs.org/)
 - [pnpm](https://pnpm.io/) - Fast, disk space efficient package manager
 - [Podman](https://podman.io/getting-started/installation) or Docker - Container runtime

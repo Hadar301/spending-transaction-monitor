@@ -7,7 +7,7 @@ name = "spending-monitor-db"
 dynamic = ["version"]
 description = "Database package for spending-monitor"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "sqlalchemy>=2.0.0",
@@ -46,7 +46,7 @@ packages = ["src/db"]
 "src/db/py.typed" = "db/py.typed"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 88
 
 [tool.ruff.lint]
@@ -76,7 +76,7 @@ dev = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
